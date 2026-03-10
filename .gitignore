@@ -1,0 +1,14 @@
+# PyCharm project settings
+.idea/
+
+# Python cache and bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore compiled Python files anywhere
+*.py[cod]
+
+# Logs (optional, only if you generate any)
+*.log

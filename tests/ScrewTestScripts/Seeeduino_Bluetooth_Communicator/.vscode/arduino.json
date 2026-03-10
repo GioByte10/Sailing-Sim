@@ -1,0 +1,7 @@
+{
+    "port": "COM13",
+    "configuration": "cpu=atmega328",
+    "board": "arduino:avr:nano",
+    "sketch": "tinker.ino",
+    "programmer": "arduino:avrispmkii"
+}
