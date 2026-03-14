@@ -4,7 +4,7 @@ class Params:
 
     def __init__(self):
         # Time Parameters
-        self.dt = 0.1 # seconds
+        self.dt = 0.2 # seconds
         self.t_start = 0.0
         self.t_end = 10.0
         

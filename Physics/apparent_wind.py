@@ -21,8 +21,8 @@ def compute_apparent_wind(boat_vel_body, env, boat_yaw):
     # boat yaw 
 
     wind_speed, wind_dir = env.wind_field
-    print(wind_speed)
-    print(wind_dir)
+    # print(wind_speed)
+    # print(wind_dir)
     # convert wind from speed + direction to earth-frame vector
     wind_earth = np.array([
         wind_speed * np.cos(wind_dir),  # x-component

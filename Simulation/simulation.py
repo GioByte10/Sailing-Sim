@@ -88,7 +88,7 @@ class Canvas(arcade.Window):
         self.drawBoat()
 
     def drawBoat(self):
-        pass
+        body = np.array([0, ], [-5])
 
     def drawCurrentField(self):
         for i in range(self.currentField.rows * self.currentField.cols):
