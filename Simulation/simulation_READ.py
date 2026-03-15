@@ -3,15 +3,6 @@ import sys
 import os
 
 import arcade
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
-
-from core.CanMotorNew import CanMotor
-from core.MotorListener import MotorListener
-import core.CANHelper
-import can
-import time
 sys.path.insert(1, '../../Physics')
 
 import numpy as np
@@ -21,10 +12,6 @@ from haptic_state import HapticState
 from motor_command_state import MotorCommand
 from params import Params
 from simulate import run_simulation
-
-sys.path.insert(1, '../../Simulation')
-
-import threading
 
 
 WIDTH = 1200
@@ -159,6 +146,7 @@ def initialize_physics():
 
     params = Params()
     boat_state = BoatState()
+    boat_state
     haptic_state = HapticState()
     motor_command = MotorCommand()
     env = Environment()
@@ -173,143 +161,8 @@ def initialize_physics():
     log_torque = []
 
 
-def end_motors(motors, notifier, can0):
-    for motor in motors:
-        motor.set_control_mode("torque", 0)
-        motor.control()
-
-    time.sleep(3)
-
-    for motor in motors:
-        motor.stop_all_tasks()
-        motor.motor_off()
-
-    notifier.stop()
-    core.CANHelper.cleanup("can0")
-    can0.shutdown()
-    print("Exiting")
-    exit(0)
-
-
-def run_motors():
-    global params, boat_state, haptic_state, motor_command, env, dt, t, t_end, log_state, log_haptic, log_forces, log_torque
-
-    core.CANHelper.init("can0")
-    can0 = can.ThreadSafeBus(channel='can0', bustype='socketcan')
-
-    wheel = CanMotor(can0, motor_id=2, gear_ratio=6, name='wheel')
-    winch = CanMotor(can0, motor_id=0, gear_ratio=6, name='winch')
-
-    motors = [wheel, winch]
-    motor_listener = MotorListener(motor_list=motors)
-
-    notifier = can.Notifier(can0, [motor_listener])
-
-    for motor in motors:
-        motor.initialize_motor()
-        motor.initialize_control_command()
-
-    time.sleep(1)
-    input("Continue")
-
-    for i in range(3):
-        for motor in motors:
-            motor.read_status_once()
-            time.sleep(0.02)
-            motor.read_multiturn_once()
-            time.sleep(0.02)
-            motor.read_motor_state_once()
-            time.sleep(0.02)
-
-    wheel_offset = wheel.motor_data.multiturn_position
-    winch_offset = winch.motor_data.multiturn_position
-
-
-    try:
-        while True:
-            wheel.read_status_once()
-            time.sleep(0.02)
-            wheel.read_multiturn_once()
-            time.sleep(0.02)
-            wheel.read_motor_state_once()
-            time.sleep(0.02)
-
-            winch.read_status_once()
-            time.sleep(0.02)
-            winch.read_multiturn_once()
-            time.sleep(0.02)
-            winch.read_motor_state_once()
-            time.sleep(0.02)
-
-            haptic_state.wh[0] = wheel.motor_data.multiturn_position - wheel_offset
-            haptic_state.wh[1] = 0
-            haptic_state.wh[2] = 0
-
-            haptic_state.wi[0] = winch.motor_data.multiturn_position - winch_offset
-            haptic_state.wi[1] = 0.0
-            haptic_state.wi[2] = 0.0
-
-            boat_state, tau_total, motor_command = run_simulation(boat_state, haptic_state, env, params)
-
-            # Send haptic torques to motors
-            wheel_torque = motor_command.wh_torque  # tau_total[5] / params.steering_ratio
-            winch_torque = 0  # motor_command.wi_torque
-
-            wheel_torque = wheel_torque / 6
-            wheel_torque = max(-10, min(wheel_torque, 10))
-
-            # print(f"Wheel Torque:  {wheel_torque}")
-            # print(f"Winch Torque: {winch_torque}")
-            # print(f"Vx: {boat_state.v[0]}")
-            # print(f"Vy: {boat_state.v[1]}")
-            #
-            # print(f"x_pos: {boat_state.nu[0]}")
-            # print(f"y_pos: {boat_state.nu[1]}")
-            #
-            # print(f"Rudder Angle: {(haptic_state.wh[0] / params.steering_ratio) * 180 / math.pi}")
-            # print(f"Angle: {boat_state.nu[5] * 180 / math.pi}")
-            # print(f"Omega: {boat_state.v[5]}")
-
-            wheel.set_control_mode("torque", wheel_torque)
-            wheel.control()
-            time.sleep(0.02)
-
-            # wheel.datadump()
-            # time.sleep(0.02)
-
-            winch.set_control_mode("torque", winch_torque)
-            winch.control()
-            time.sleep(0.02)
-
-            winch.datadump()
-            time.sleep(0.02)
-
-            t += dt
-
-            log_state.append(boat_state.as_vector())
-            log_haptic.append(haptic_state.as_vector())
-            log_forces.append(tau_total)
-            log_torque.append([wheel_torque, winch_torque])
-
-            if STOP:
-                end_motors(motors, notifier, can0)
-
-            pass
-
-    except KeyboardInterrupt:
-        end_motors(motors, notifier, can0)
-
-
 if __name__ == "__main__":
     initialize_physics()
 
-    run_motors_thread = threading.Thread(target=run_motors)
-    run_motors_thread.start()
-
     window = Canvas()
-
-    try:
-        arcade.run()
-
-    except KeyboardInterrupt:
-        STOP = 1
+    arcade.run()
