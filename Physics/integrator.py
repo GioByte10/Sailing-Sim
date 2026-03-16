@@ -19,14 +19,14 @@ def euler_integrate(boat_state, tau, params):
 
     M = np.diag([params.mass, params.mass, params.mass,
                 params.Ix, params.Iy, params.Iz])
-    
+   
     # TODO include Damping by @(tau - D@V)
 
-    # Velocity 
-    v_k = np.linalg.inv(M) @ (tau)
+    # Current Acceleration 
+    a_k = np.linalg.inv(M) @ (tau)
     
     # Velocity Update
-    v_k1 = v_k + v_k*dt
+    v_k1 = v_k + a_k*dt
 
     # TODO implement rotation matrixes for integration instead
     # Linear Positions Update
@@ -36,7 +36,7 @@ def euler_integrate(boat_state, tau, params):
     # Angular Update
     nu_k1[3:6] += v_k1[3:6]*dt
 
-    return BoatState(nu_k1, v_k1)
+    return BoatState(params, nu_k1, v_k1)
 
 
 

@@ -199,7 +199,7 @@ def initialize_physics():
     global params, boat_state, haptic_state, motor_command, env, dt, t, t_end, log_state, log_haptic, log_forces, log_torque
 
     params = Params()
-    boat_state = BoatState()
+    boat_state = BoatState(params)
     boat_state.nu[0] = 0
     boat_state.nu[1] = 0
     boat_state.nu[1] = 0

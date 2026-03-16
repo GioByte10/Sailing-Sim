@@ -35,7 +35,7 @@ if __name__ == "__main__":
     chunky.datadump()
 
     step = float(sys.argv[1])
-    chunky.set_control_mode("speed", step)
+    chunky.set_control_mode("torque", 0)
     chunky.control()
 
     t = 0
@@ -49,10 +49,6 @@ if __name__ == "__main__":
             chunky.read_motor_state_once()
             time.sleep(0.02)
             chunky.datadump()
-            time.sleep(0.02)
-
-            chunky.set_control_mode("speed", step)
-            chunky.control()
             time.sleep(0.02)
 
             t += 0.005

@@ -10,6 +10,6 @@ def compute_motor_torques(tau, sail_lift, sail_drag, haptic_state, params):
     
     # Winch Torque
     sheet_tension = np.sqrt(sail_lift**2 + sail_drag**2) # sail force magnitude
-    motor_cmd.wi_torque = sheet_tension * params.winch_radius
+    motor_cmd.wi_torque = sheet_tension * params.winch_radius #/ params.winch_ratio
 
     return motor_cmd

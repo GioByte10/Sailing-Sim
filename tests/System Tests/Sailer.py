@@ -21,6 +21,7 @@ from haptic_state import HapticState
 from motor_command_state import MotorCommand
 from params import Params
 from simulate import run_simulation
+from control_state import ControlState
 
 sys.path.insert(1, '../../Simulation')
 
@@ -36,7 +37,7 @@ Y = 1
 
 STOP = 0
 
-params, boat_state, haptic_state, motor_command, env, dt, t, t_end, log_state, log_haptic, log_forces, log_torque = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+params, boat_state, haptic_state, control_state, motor_command, env, dt, t, t_end, log_state, log_haptic, log_forces, log_torque = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 def rotate(matrix, theta):
     c = np.cos(theta)
@@ -52,6 +53,12 @@ class VectorField:
         self.rows = rows
         self.cols = cols
 
+        self.spacingR = HEIGHT // self.rows
+        self.spacingC = WIDTH // self.cols
+
+        self.rows += 1
+        self.cols += 1
+
         self.translations = np.zeros((self.rows * self.cols, 2), dtype=float)
         self.vectors = np.zeros((self.rows * self.cols, 2), dtype=float)
 
@@ -59,8 +66,10 @@ class VectorField:
         for row in range(self.rows):
             for col in range(self.cols):
                 i = row * self.cols + col
-                self.translations[i, X] = (WIDTH / (self.cols + 1)) * (col + 1)
-                self.translations[i, Y] = (HEIGHT / (self.rows + 1)) * (row + 1)
+                self.translations[i, X] = 0.5 * self.spacingC + col * self.spacingC
+                self.translations[i, Y] = 0.5 * self.spacingR + row * self.spacingR
+
+        self.initialTranslations = self.translations.copy()
 
         # Vectors
         for row in range(self.rows):
@@ -82,17 +91,28 @@ class VectorField:
                 self.vectors[i, X] = r * math.cos(theta)
                 self.vectors[i, Y] = r * math.sin(theta)
 
-    def update(self, offset):
-        c = np.cos(offset)
-        s = np.sin(offset)
-        R = np.array([[c, -s],
-                      [s, c]])
+    def update(self, offsetX, offsetY):
+        offsetX = offsetX % self.spacingC
+        offsetY = offsetY % self.spacingR
 
         for row in range(self.rows):
             for col in range(self.cols):
                 i = row * self.cols + col
+                self.translations[i, X] = self.initialTranslations[i, X] - offsetX
+                self.translations[i, Y] = self.initialTranslations[i, Y] - offsetY
 
-                self.vectors[i] = R @ self.vectors[i]
+                if self.translations[i, X] < -self.spacingC:
+                    self.translations[i, X] += WIDTH
+
+                elif self.translations[i, X] > WIDTH + self.spacingC:
+                    self.translations[i, X] -= WIDTH
+
+                if self.translations[i, Y] < -self.spacingR / 2:
+                    self.translations[i, Y] += HEIGHT
+
+                elif self.translations[i, Y] > HEIGHT + self.spacingR / 2:
+                    self.translations[i, Y] -= HEIGHT
+
 
 
 class Canvas(arcade.Window):
@@ -100,37 +120,67 @@ class Canvas(arcade.Window):
         super().__init__(WIDTH, HEIGHT, SCREEN_TITLE)
 
         arcade.set_background_color((0, 119, 190, 0))
-        self.currentField = VectorField(12, 12)
-        self.t = 0
+        self.currentField = VectorField(8, 8)
+
+        self.boat_sprite = arcade.Sprite('assets/boat.png', scale=0.6)
+        self.compass_sprite = arcade.Sprite('assets/compass4.png', scale=0.15)
+
+        self.compass_sprite.center_x = 70
+        self.compass_sprite.center_y = HEIGHT - 70
+
+        self.sprites = arcade.SpriteList()
+        self.sprites.append(self.boat_sprite)
+        self.sprites.append(self.compass_sprite)
 
         arcade.schedule(self.on_update, 1/60)
 
     def on_draw(self):
         self.clear()
         self.drawCurrentField()
-        self.drawBoat()
+        self.updateBoat()
+        self.sprites.draw()
 
 
-    def drawPolygon(self, points, tx, ty):
+    def on_update(self, delta_time):
+        theta = env.wind_field[1] * 180 / math.pi
+        self.currentField.point_to(theta)
+
+
+    @staticmethod
+    def drawPolygon(points, tx, ty):
         n = points.shape[0]
 
         for i in range(n):
             arcade.draw_line(tx + points[i][0], ty + points[i][1], tx + points[(i + 1)  % n][0], ty + points[(i + 1) % n][1], color=arcade.color.BLACK)
 
 
-    def drawBoat(self):
-        x = boat_state.nu[0] * 100 + WIDTH / 2
-        y = boat_state.nu[1] * 100 + HEIGHT / 2
+    def updateBoat(self):
+        yaw = boat_state.nu[5] * 180 / math.pi
 
-        yaw = boat_state.nu[5]
+        self.boat_sprite.center_x = WIDTH / 2
+        self.boat_sprite.center_y = HEIGHT / 2
+        self.boat_sprite.angle = yaw
 
 
-        body = np.array([[0, -14], [-10, -24], [-10, 0], [0, 10], [10, 0], [10, -24]])
-        body_rot = rotate(body, yaw)
-        self.drawPolygon(body_rot, x, y)
-
+    # def drawSail(self):
+    #     sail_angle = control_state.sail_angle
+    #     arcade.draw_arc_filled(
+    #         WIDTH - 50,
+    #         HEIGHT - 50,
+    #         30,
+    #         10,
+    #         arcade.color.WHITE,
+    #         0,
+    #         5,
+    #         tilt_angle=sail_angle,
+    #         num_segments=128
+    #     )
 
     def drawCurrentField(self):
+        offsetX = boat_state.nu[0] * 100
+        offsetY = boat_state.nu[1] * 100
+        self.currentField.update(offsetY, offsetX)
+
         for i in range(self.currentField.rows * self.currentField.cols):
             tx = self.currentField.translations[i, X]
             ty = self.currentField.translations[i, Y]
@@ -148,18 +198,15 @@ class Canvas(arcade.Window):
             arcade.draw_line(tx + rot_tip[0][0], ty + rot_tip[0][1], tx + rot_tip[1][0], ty + rot_tip[1][1], arcade.color.BLACK)
             arcade.draw_line(tx + rot_tip[1][0], ty + rot_tip[1][1], tx + rot_tip[2][0], ty + rot_tip[2][1], arcade.color.BLACK)
 
-    def on_update(self, delta_time):
-        theta = env.wind_field[1] * 180 / math.pi
-        self.currentField.point_to(theta)
-
 
 
 def initialize_physics():
-    global params, boat_state, haptic_state, motor_command, env, dt, t, t_end, log_state, log_haptic, log_forces, log_torque
+    global params, boat_state, haptic_state, control_state, motor_command, env, dt, t, t_end, log_state, log_haptic, log_forces, log_torque
 
     params = Params()
-    boat_state = BoatState()
+    boat_state = BoatState(params)
     haptic_state = HapticState()
+    control_state = ControlState()
     motor_command = MotorCommand()
     env = Environment()
 
@@ -241,22 +288,21 @@ def run_motors():
             winch.read_motor_state_once()
             time.sleep(0.02)
 
-            haptic_state.wh[0] = wheel.motor_data.multiturn_position - wheel_offset
+            haptic_state.wh[0] = 0
             haptic_state.wh[1] = 0
             haptic_state.wh[2] = 0
 
-            haptic_state.wi[0] = winch.motor_data.multiturn_position - winch_offset
+            haptic_state.wi[0] = 0
             haptic_state.wi[1] = 0.0
             haptic_state.wi[2] = 0.0
 
-            boat_state, tau_total, motor_command = run_simulation(boat_state, haptic_state, env, params)
+            boat_state, tau_total, motor_command = run_simulation(boat_state, haptic_state, control_state, env, params)
 
-            # Send haptic torques to motors
-            wheel_torque = motor_command.wh_torque  # tau_total[5] / params.steering_ratio
-            winch_torque = 0  # motor_command.wi_torque
-
+            wheel_torque = motor_command.wh_torque
             wheel_torque = wheel_torque / 6
-            wheel_torque = max(-10, min(wheel_torque, 10))
+            wheel_torque = 0
+
+            winch_torque = 0
 
             # print(f"Wheel Torque:  {wheel_torque}")
             # print(f"Winch Torque: {winch_torque}")
@@ -267,7 +313,7 @@ def run_motors():
             # print(f"y_pos: {boat_state.nu[1]}")
             #
             # print(f"Rudder Angle: {(haptic_state.wh[0] / params.steering_ratio) * 180 / math.pi}")
-            # print(f"Angle: {boat_state.nu[5] * 180 / math.pi}")
+            # print(f"Yaw: {boat_state.nu[5] * 180 / math.pi}")
             # print(f"Omega: {boat_state.v[5]}")
 
             wheel.set_control_mode("torque", wheel_torque)
@@ -281,8 +327,8 @@ def run_motors():
             winch.control()
             time.sleep(0.02)
 
-            winch.datadump()
-            time.sleep(0.02)
+            # winch.datadump()
+            # time.sleep(0.02)
 
             t += dt
 

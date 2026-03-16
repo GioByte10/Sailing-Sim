@@ -4,16 +4,25 @@ class HapticState:
     # Haptic Interface: Wheel and Winch
     # wh = steering wheel kinematics [angular position, velocity, acceleration]
     # wi = main sail winch kinematics [angular positon, velocity, acceleration]
+    # str_ratio = wheel to rudder gear ratio
 
-    def __init__(self, wh=None, wi=None):
+    def __init__(self, wh=None, wi=None, wh_ratio=None, wi_ratio=None):
         if wh is None:
              wh = np.zeros(3)
         
         if wi is None:
             wi = np.zeros(3)
+        
+        if wh_ratio:
+            wh_ratio = 10
+
+        if wi_ratio:
+            wi_ratio = 10
 
         self.wh = np.array(wh, dtype=float)
         self.wi = np.array(wi, dtype = float)
+
+        
 
     def copy(self):
         # returns deep copy of haptic state
@@ -23,6 +32,8 @@ class HapticState:
         # returns full 6 elment vector state
         return np.concatenate([self.wh, self. wi])
     
+    
+        
     @staticmethod
     def from_vector(x):
         # construct haptic state from vector
