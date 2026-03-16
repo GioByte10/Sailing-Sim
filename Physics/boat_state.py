@@ -15,6 +15,7 @@ class BoatState:
             
         if v is None:
             v = np.zeros(6)
+            v[0] = 4 # 2 knots or 4 m/s
 
         self.nu = np.array(nu, dtype=float)
         self.v = np.array(v, dtype=float)

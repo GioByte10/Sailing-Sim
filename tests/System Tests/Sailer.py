@@ -1,6 +1,7 @@
 import math
 import sys
 import os
+from doctest import run_docstring_examples
 
 import arcade
 
@@ -137,13 +138,17 @@ class Canvas(arcade.Window):
     def on_draw(self):
         self.clear()
         self.drawCurrentField()
-        self.updateBoat()
         self.sprites.draw()
 
 
     def on_update(self, delta_time):
         theta = env.wind_field[1] * 180 / math.pi
         self.currentField.point_to(theta)
+
+        offsetX = boat_state.nu[0] * 25
+        offsetY = boat_state.nu[1] * 25
+        self.currentField.update(offsetY, offsetX)
+        self.updateBoat()
 
 
     @staticmethod
@@ -177,10 +182,6 @@ class Canvas(arcade.Window):
     #     )
 
     def drawCurrentField(self):
-        offsetX = boat_state.nu[0] * 100
-        offsetY = boat_state.nu[1] * 100
-        self.currentField.update(offsetY, offsetX)
-
         for i in range(self.currentField.rows * self.currentField.cols):
             tx = self.currentField.translations[i, X]
             ty = self.currentField.translations[i, Y]
@@ -197,7 +198,6 @@ class Canvas(arcade.Window):
 
             arcade.draw_line(tx + rot_tip[0][0], ty + rot_tip[0][1], tx + rot_tip[1][0], ty + rot_tip[1][1], arcade.color.BLACK)
             arcade.draw_line(tx + rot_tip[1][0], ty + rot_tip[1][1], tx + rot_tip[2][0], ty + rot_tip[2][1], arcade.color.BLACK)
-
 
 
 def initialize_physics():
@@ -275,32 +275,35 @@ def run_motors():
     try:
         while True:
             wheel.read_status_once()
-            time.sleep(0.02)
+            time.sleep(0.01)
             wheel.read_multiturn_once()
-            time.sleep(0.02)
+            time.sleep(0.01)
             wheel.read_motor_state_once()
-            time.sleep(0.02)
+            time.sleep(0.01)
 
             winch.read_status_once()
-            time.sleep(0.02)
+            time.sleep(0.01)
             winch.read_multiturn_once()
-            time.sleep(0.02)
+            time.sleep(0.01)
             winch.read_motor_state_once()
-            time.sleep(0.02)
+            time.sleep(0.01)
 
-            haptic_state.wh[0] = 0
+            haptic_state.wh[0] = -(wheel.motor_data.multiturn_position - wheel_offset)
             haptic_state.wh[1] = 0
             haptic_state.wh[2] = 0
 
-            haptic_state.wi[0] = 0
+            haptic_state.wi[0] = -(winch.motor_data.multiturn_position - winch_offset)
             haptic_state.wi[1] = 0.0
             haptic_state.wi[2] = 0.0
+
+            control_state.update(haptic_state, params)
 
             boat_state, tau_total, motor_command = run_simulation(boat_state, haptic_state, control_state, env, params)
 
             wheel_torque = motor_command.wh_torque
-            wheel_torque = wheel_torque / 6
-            wheel_torque = 0
+            print(f"Main torque: {motor_command.wh_torque}")
+            wheel_torque = wheel_torque / 20
+            wheel_torque = max(-5, min(wheel_torque, 5))
 
             winch_torque = 0
 
@@ -316,31 +319,43 @@ def run_motors():
             # print(f"Yaw: {boat_state.nu[5] * 180 / math.pi}")
             # print(f"Omega: {boat_state.v[5]}")
 
-            wheel.set_control_mode("torque", wheel_torque)
-            wheel.control()
-            time.sleep(0.02)
+            # print(f"X: {boat_state.nu[0]}, Y: {boat_state.nu[1]}")
+            yaw = boat_state.nu[5] * 180 / math.pi
+            print(f"Yaw: {yaw}")
+            print(f"Winch angle: {control_state.sail_angle * 180 / math.pi}")
+            print(f"Rudder angle: {control_state.rudder_angle * 180 / math.pi}")
 
-            # wheel.datadump()
-            # time.sleep(0.02)
+            wheel.set_control_mode("torque", wheel_torque)
+
+            time.sleep(0.01)
+
+            # if control_state.rudder_angle >= params.rudder_angle_limit - 0.01:
+            #     wheel.set_control_mode("torque", 10)
+            #
+            # elif control_state.rudder_angle <= -params.rudder_angle_limit + 0.01:
+            #     wheel.set_control_mode("torque", -10)
+            #
+            # else:
+            #     wheel.set_control_mode("torque", wheel_torque)
+
+            wheel.control()
+
+
+            print("wheel_torque", wheel_torque)
+            wheel.datadump()
+            time.sleep(0.01)
 
             winch.set_control_mode("torque", winch_torque)
             winch.control()
-            time.sleep(0.02)
+            time.sleep(0.01)
 
             # winch.datadump()
-            # time.sleep(0.02)
+            # time.sleep(0.01)
 
             t += dt
 
-            log_state.append(boat_state.as_vector())
-            log_haptic.append(haptic_state.as_vector())
-            log_forces.append(tau_total)
-            log_torque.append([wheel_torque, winch_torque])
-
             if STOP:
                 end_motors(motors, notifier, can0)
-
-            pass
 
     except KeyboardInterrupt:
         end_motors(motors, notifier, can0)
@@ -354,8 +369,4 @@ if __name__ == "__main__":
 
     window = Canvas()
 
-    try:
-        arcade.run()
-
-    except KeyboardInterrupt:
-        STOP = 1
+    arcade.run()

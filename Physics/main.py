@@ -7,9 +7,8 @@ from motor_command_state import MotorCommand
 from control_state import ControlState
 from params import Params
 from simulate import run_simulation
-#TODO import motor_interface
-#TODO import graphics 
 
+import csv
 import matplotlib.pyplot as plt
 
 
@@ -38,6 +37,11 @@ def main():
     nu_data = []  # store as list of vectors
     # boat_state.v: [Fx, Fy, Fz, Mx, My, Mz] or similar
     v_data = []
+    # wheel torque applied by motor
+    wh_torque_data = []
+    # winch torque applied by motor
+    wi_torque_data = []
+
 
     # Graphics Start
     # last_draw_time = time.time()
@@ -51,7 +55,7 @@ def main():
         haptic_state.wh[1] = 0 # wheel velocity
         haptic_state.wh[2] = 0 # wheel acceleration
 
-        haptic_state.wi[0] = 0 #2 *np.pi # devided by winch gear rati
+        haptic_state.wi[0] = 0 # 6.28 is 45 deg 2 *np.pi # devided by winch gear ratio
         haptic_state.wi[1] = 0.0 # winch velocity
         haptic_state.wi[2] = 0.0 # winch acceleration
 
@@ -68,8 +72,8 @@ def main():
         wheel_torque = motor_command.wh_torque #tau_total[5] / params.steering_ratio
         winch_torque = motor_command.wi_torque #motor_command.wi_torque
 
-        #print(f"Wheel Torque:  {wheel_torque}")
-        #print(f"Winch Torque: {winch_torque}")
+        print(f"Wheel Torque:  {wheel_torque}")
+        print(f"Winch Torque: {winch_torque}")
         #print(f"Yaw Position: {boat_state.nu[5]*180/np.pi}")
         #print(f"Speed u: {boat_state.v[0]}")
         #print(f"Speed v: {boat_state.v[1]}")
@@ -92,6 +96,8 @@ def main():
         time_data.append(t)
         nu_data.append(boat_state.nu)
         v_data.append(boat_state.v)
+        wh_torque_data.append(wheel_torque)
+        wi_torque_data.append(winch_torque)
 
         t += dt # Update time
      
@@ -131,7 +137,34 @@ def main():
     plt.legend()
     plt.grid(True)
 
+        # ---- Plot torques quantities ----
+    plt.figure(figsize=(10, 6))
+    plt.plot(time_data, wh_torque_data[:], label='Wheel Torque', color='red')
+    plt.plot(time_data, wi_torque_data[:], label='Winch Torque', color='blue')
+    plt.plot(time_data, np.rad2deg(nu_data[:,5]), label='Yaw', color='green')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Motor Torques')
+    plt.title('Calculated Motor Torques vs Time')
+    plt.legend()
+    plt.grid(True)
+
     plt.show()
+
+    '''
+    #with open("boat_simulation_data.csv", "w", newline="") as f:
+     #   writer = csv.writer(f)
+
+        # Header
+        #header = [
+            "time",
+            "nu_0","nu_1","nu_2","nu_3","nu_4","nu_5",
+            "v_0","v_1","v_2","v_3","v_4","v_5"
+        ]
+    writer.writerow(header)
+
+    # Data
+    writer.writerows(boat_state.nu, )
+    '''
 
 
 

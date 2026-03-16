@@ -19,7 +19,7 @@ def compute_apparent_wind(boat_vel_body, env, boat_yaw):
     # boat_vel_body: np.array([u, v, w]) in body frame
     # wind_vel_earth: np.array([vx, vy, vz]) in earth frame
     # boat yaw 
-
+    """
     wind_speed, wind_dir = env.wind_field
     
     # convert wind from speed + direction to earth-frame vector
@@ -28,6 +28,9 @@ def compute_apparent_wind(boat_vel_body, env, boat_yaw):
         wind_speed * np.sin(wind_dir),  # y-component
         0                               # assume horizontal wind
     ])
+    """
+
+    wind_earth = env.wind_field_earth
 
     c, s = np.cos(boat_yaw), np.sin(boat_yaw)
     R = np.array([[c, s, 0],
