@@ -131,10 +131,10 @@ class Canvas(arcade.Window):
     def on_draw(self):
         self.clear()
         self.drawCurrentField()
-        self.drawSail()
         self.drawFrame()
         self.drawPath()
         self.sprites.draw()
+        self.drawSail()
         self.drawRudderNeedle()
 
 
@@ -144,7 +144,7 @@ class Canvas(arcade.Window):
 
         update_physics()
 
-        offsetX = boat_state.nu[0] * 25
+        offsetX = boat_state.nu[0] * boat_state.nu[0] * 25
         offsetY = boat_state.nu[1] * 25
 
         self.boat_path.append([WIDTH / 2 - offsetY, HEIGHT / 2 - offsetX])
@@ -199,8 +199,8 @@ class Canvas(arcade.Window):
 
         width = 60
         height = 34
-        center_x = WIDTH - 45
-        center_y = HEIGHT - 45
+        center_x = WIDTH / 2
+        center_y = HEIGHT / 2
 
         segments = 120
 
