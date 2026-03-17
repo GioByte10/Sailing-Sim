@@ -42,7 +42,7 @@ offset_sail_boat_angle = 0
 acceleration = np.array([0, 0], dtype=np.float64)
 velocity = np.array([10, 0], dtype=np.float64)
 position = np.array([0, 0], dtype=np.float64)
-wind = np.array([10, 0], dtype=np.float64)
+wind = np.array([10, -10], dtype=np.float64)
 
 def rotate(matrix, theta):
     c = np.cos(theta)
@@ -143,12 +143,12 @@ class Canvas(arcade.Window):
         self.drawRudderNeedle()
 
         # Overlay Speed HUD
-        arcade.draw_text(f"Speed: {sim_state['boat_speed_kts']:.1f} kts", 10, HEIGHT - 30, arcade.color.WHITE, 16)
-        arcade.draw_text(f"Heading: {sim_state['heading']:.0f}°", 10, HEIGHT - 55, arcade.color.WHITE, 16)
+        arcade.draw_text(f"Speed: {np.linalg.norm(velocity):.1f} kts", WIDTH - 150, HEIGHT - 20, arcade.color.BLACK, font_size=13, anchor_x="right", anchor_y = "top")
+        arcade.draw_text(f"Heading: {yaw:.1f}°", WIDTH - 150, HEIGHT - 40, arcade.color.BLACK, font_size=13, anchor_x="right", anchor_y = "top")
 
     def on_update(self, delta_time):
-        offsetX = position[X] * 10
-        offsetY = position[Y] * 10
+        offsetX = position[X] * 2
+        offsetY = position[Y] * 2
 
         self.boat_path.append([WIDTH / 2 - offsetX, HEIGHT / 2 - offsetY])
         self.currentField.update(offsetX, offsetY)
@@ -189,9 +189,9 @@ class Canvas(arcade.Window):
                              arcade.color.BLACK)
 
     def drawSail(self):
-        arcade.draw_text("Sail angle: ", WIDTH - 70, HEIGHT - 20, arcade.color.BLACK, font_size=13, anchor_x="right",
+        arcade.draw_text("Sail angle: ", WIDTH - 30, HEIGHT - 20, arcade.color.BLACK, font_size=13, anchor_x="right",
                          anchor_y="top")
-        arcade.draw_text(f"{(sail_angle * 180 / math.pi) % 360:.2f}°", WIDTH - 78, HEIGHT - 40, arcade.color.BLACK,
+        arcade.draw_text(f"{(sail_angle * 180 / math.pi) % 360:.2f}°", WIDTH - 38, HEIGHT - 40, arcade.color.BLACK,
                          font_size=13, anchor_x="right", anchor_y="top")
 
         points = []
@@ -342,14 +342,14 @@ def run_motors():
 
     rudder_boat_angle = 0
 
-    k_yaw = 0.5
-    k_rudder = 0.5
+    k_yaw = 0.01
+    k_rudder = 0.01
     b = 0.2
 
     CL = 1.2
     CD = 0.12
 
-    mass = 3100
+    mass = 6100
     A = 150
 
     rho = 1030
@@ -358,6 +358,9 @@ def run_motors():
 
     Ax = 2.5
     Ay = 7
+
+    real_rudder_boat_angle = 0
+    k_wall = 40
 
 
     try:
@@ -379,8 +382,13 @@ def run_motors():
             wheel_angle = (wheel.motor_data.multiturn_position - wheel_offset)
             winch_angle = (winch.motor_data.multiturn_position - winch_offset)
 
+
             rudder_boat_angle = wheel_angle / 10
-            sail_boat_angle = winch_angle / 10 + offset_sail_boat_angle
+            real_rudder_boat_angle = wheel_angle / 10
+
+            sail_boat_angle = winch_angle / 4 + offset_sail_boat_angle
+
+            rudder_boat_angle = np.clip(rudder_boat_angle, -40 * math.pi / 180, 40 * math.pi / 180)
 
             rudder_angle = rudder_boat_angle + yaw
             sail_angle = sail_boat_angle + yaw
@@ -391,20 +399,37 @@ def run_motors():
 
             dt = 0.08
 
-            wheel_torque = k_yaw * np.sin(yaw - wind_angle)
+            wheel_torque = 0.1 * np.sin(yaw - wind_angle)
 
             if np.linalg.norm(velocity) > 0.001:
                 wheel_torque +=  k_rudder * np.sin(rudder_angle - velocity_angle)
 
-            wheel_torque *= 10
+            wheel_torque *= 40
+            wheel_torque = np.clip(wheel_torque, -6, 6)
+
+            print("HEREEEEEEEEEEEEEE")
+            if real_rudder_boat_angle > 40 * math.pi / 180:
+                wheel_torque = 0
+                wheel_torque -= k_wall * (real_rudder_boat_angle - 40 * math.pi / 180)
+                print(wheel_torque)
+
+            elif real_rudder_boat_angle < -40 * math.pi / 180:
+                wheel_torque = 0
+                wheel_torque -= k_wall * (real_rudder_boat_angle + 40 * math.pi / 180)
+                print(wheel_torque)
+
             wheel_torque = np.clip(wheel_torque, -6, 6)
 
             yaw_moment = k_yaw * np.sin(yaw - wind_angle) - b * yaw_omega
+
+            if np.linalg.norm(velocity) > 0.001:
+                yaw_moment += 0.3 * np.sin(rudder_angle - velocity_angle)
+
             yaw_omega += yaw_moment * dt
             yaw += yaw_omega * dt
 
             print(f"Wind mag: {wind_mag}")
-            force_lift = 0.5 * A * CL * np.square((np.sin(sail_angle - wind_angle) * wind_mag)) * np.sign(np.cos(sail_angle - wind_angle))
+            force_lift = 0.5 * A * CL * np.square((np.sin(sail_angle - wind_angle) * wind_mag)) * np.sign(np.sin(sail_angle - wind_angle))
             # force_drag = 0.5 * A * CD * (np.cos(sail_angle - wind_angle) * wind_mag) ^ 2
 
             x_drag_body = -0.5 * rho * cdhx * Ax * (np.cos(-yaw) * velocity[X]) * abs(np.cos(-yaw) * velocity[X])
@@ -441,9 +466,9 @@ def run_motors():
             wheel.control()
             time.sleep(0.01)
 
-            winch.set_control_mode("torque", 0)
-            winch.control()
-            time.sleep(0.01)
+            # winch.set_control_mode("torque", 0)
+            # winch.control()
+            # time.sleep(0.01)
 
             velocity += acceleration * dt
             position += velocity * dt
